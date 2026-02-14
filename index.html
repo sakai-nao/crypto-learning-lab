@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>暗号体験（共通鍵 / 公開鍵）</title>
+  <style>
+    body{font-family:system-ui, -apple-system, "Segoe UI", sans-serif; margin:16px; line-height:1.4;}
+    h1{font-size:20px;margin:0 0 12px;}
+    .tabs{display:flex; gap:8px; margin-bottom:12px;}
+    button{padding:8px 10px; cursor:pointer;}
+    textarea,input{width:100%; box-sizing:border-box; padding:8px; margin:6px 0 10px;}
+    .row{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
+    .card{border:1px solid #ccc; border-radius:10px; padding:12px;}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;}
+    .small{font-size:12px; color:#444;}
+    .warn{color:#a00; font-weight:600;}
+    @media (max-width:900px){ .row{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <h1>暗号体験Webアプリ（授業用：共通鍵暗号 / 公開鍵暗号）</h1>
+  <div class="small warn">
+    ※これは学習用です。安全な通信のための実運用暗号ではありません（特にRSAは玩具サイズ）。
+  </div>
+
+  <div class="tabs">
+    <button id="tabSym">共通鍵暗号</button>
+    <button id="tabAsym">公開鍵暗号</button>
+  </div>
+
+  <!-- 共通鍵 -->
+  <section id="sym">
+    <div class="row">
+      <div class="card">
+        <h2 style="margin:0 0 8px;font-size:16px;">送信者（暗号化）</h2>
+        <label>平文</label>
+        <textarea id="symPlain" rows="5" placeholder="例：明日の1時間目は体育です。"></textarea>
+        <label>共通鍵（パスフレーズ）</label>
+        <input id="symKey" placeholder="例：sakurai" />
+        <button id="symEnc">暗号化 →</button>
+        <label>暗号文（相手に送る）</label>
+        <textarea id="symCipher" class="mono" rows="5" placeholder="ここに暗号文が出ます"></textarea>
+        <button id="symCopy">暗号文をコピー</button>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 8px;font-size:16px;">受信者（復号）</h2>
+        <label>受け取った暗号文</label>
+        <textarea id="symCipherIn" class="mono" rows="5" placeholder="送られてきた暗号文を貼り付け"></textarea>
+        <label>共通鍵（同じもの）</label>
+        <input id="symKeyIn" placeholder="送信者と同じ鍵を入力" />
+        <button id="symDec">復号 →</button>
+        <label>復号結果（平文）</label>
+        <textarea id="symPlainOut" rows="5" placeholder="ここに復号結果が出ます"></textarea>
+        <div class="small">
+          体験ポイント：鍵が一致すると読める／1文字でも違うと読めない（鍵配送問題につなげる）
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 公開鍵 -->
+  <section id="asym" style="display:none;">
+    <div class="row">
+      <div class="card">
+        <h2 style="margin:0 0 8px;font-size:16px;">受信者（鍵を作る・秘密鍵で復号）</h2>
+        <button id="rsaGen">鍵ペア生成（玩具RSA）</button>
+        <label>公開鍵（相手に渡す）</label>
+        <textarea id="pubKey" class="mono" rows="3" readonly></textarea>
+        <button id="pubCopy">公開鍵をコピー</button>
+
+        <label>秘密鍵（自分だけ。見せない）</label>
+        <textarea id="privKey" class="mono" rows="3" readonly></textarea>
+
+        <hr />
+        <label>受け取った暗号文（数字の列）</label>
+        <textarea id="rsaCipherIn" class="mono" rows="5" placeholder="送信者から来た暗号文を貼り付け"></textarea>
+        <button id="rsaDec">秘密鍵で復号 →</button>
+        <label>復号結果（平文）</label>
+        <textarea id="rsaPlainOut" rows="5"></textarea>
+
+        <div class="small">
+          体験ポイント：公開鍵は配ってOK／復号は秘密鍵が必要（片方向性）
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 8px;font-size:16px;">送信者（公開鍵で暗号化）</h2>
+        <label>受信者から教わった公開鍵</label>
+        <textarea id="pubKeyIn" class="mono" rows="3" placeholder='例：{"n":12345,"e":17}'></textarea>
+
+        <label>送りたい平文（短め推奨）</label>
+        <textarea id="rsaPlain" rows="5" placeholder="例：OK"></textarea>
+
+        <button id="rsaEnc">公開鍵で暗号化 →</button>
+        <label>暗号文（数字の列：相手に送る）</label>
+        <textarea id="rsaCipher" class="mono" rows="6"></textarea>
+        <button id="rsaCopy">暗号文をコピー</button>
+
+        <div class="small warn">
+          ※このRSAは小さい数で動かしているため、長文・絵文字などは向きません（授業用の概念体験）。
+        </div>
+      </div>
+    </div>
+  </section>
+
+<script>
+/* ---------- 共通鍵（簡易：Vigenere風。UTF-8バイトに対して加算） ---------- */
+const te = new TextEncoder();
+const td = new TextDecoder();
+
+function b64encode(bytes){
+  let bin = "";
+  bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin);
+}
+function b64decode(str){
+  const bin = atob(str);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function symEncrypt(plain, key){
+  if(!key) throw new Error("鍵が空です");
+  const p = te.encode(plain);
+  const k = te.encode(key);
+  const c = new Uint8Array(p.length);
+  for(let i=0;i<p.length;i++){
+    c[i] = (p[i] + k[i % k.length]) & 255;
+  }
+  return b64encode(c);
+}
+function symDecrypt(cipherB64, key){
+  if(!key) throw new Error("鍵が空です");
+  const c = b64decode(cipherB64.trim());
+  const k = te.encode(key);
+  const p = new Uint8Array(c.length);
+  for(let i=0;i<c.length;i++){
+    p[i] = (c[i] - k[i % k.length] + 256) & 255;
+  }
+  return td.decode(p);
+}
+
+/* ---------- 公開鍵（玩具RSA） ---------- */
+// 乱数と素数（小）生成
+function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function gcd(a,b){ while(b){ [a,b]=[b,a%b]; } return a; }
+function egcd(a,b){
+  if(b===0) return [a,1,0];
+  const [g,x1,y1]=egcd(b,a%b);
+  return [g,y1,x1 - Math.floor(a/b)*y1];
+}
+function modInv(a,m){
+  const [g,x,_]=egcd(a,m);
+  if(g!==1) return null;
+  return (x % m + m) % m;
+}
+function modPow(base, exp, mod){
+  let r = 1n;
+  let b = BigInt(base) % BigInt(mod);
+  let e = BigInt(exp);
+  const m = BigInt(mod);
+  while(e>0n){
+    if(e & 1n) r = (r*b) % m;
+    b = (b*b) % m;
+    e >>= 1n;
+  }
+  return r;
+}
+function isPrime(n){
+  if(n<2) return false;
+  if(n%2===0) return n===2;
+  for(let i=3;i*i<=n;i+=2) if(n%i===0) return false;
+  return true;
+}
+function genSmallPrime(){
+  while(true){
+    const n = randInt(200, 500); // 小さめ
+    if(isPrime(n)) return n;
+  }
+}
+function rsaKeygen(){
+  let p = genSmallPrime();
+  let q = genSmallPrime();
+  while(q===p) q = genSmallPrime();
+  const n = p*q;
+  const phi = (p-1)*(q-1);
+  // eはphiと互いに素
+  let e = 65537;
+  if(e>=phi || gcd(e,phi)!==1){
+    e = 3;
+    while(e<phi && gcd(e,phi)!==1) e+=2;
+  }
+  const d = modInv(e, phi);
+  if(d===null) return rsaKeygen();
+  return { pub:{n,e}, priv:{n,d} };
+}
+// RSA（玩具）：1文字(コード)を1ブロックとして暗号化（nより小さい必要あり）
+function rsaEncryptText(text, pub){
+  const codes = Array.from(text).map(ch => ch.codePointAt(0));
+  // nが小さいので、コードがn以上だと破綻する（絵文字等）
+  if(codes.some(x => x >= pub.n)) {
+    throw new Error("文字コードが大きすぎます。短い英数字や記号で試してください。");
+  }
+  const out = codes.map(m => modPow(m, pub.e, pub.n).toString());
+  return out.join(" ");
+}
+function rsaDecryptText(cipher, priv){
+  const parts = cipher.trim().split(/\s+/).filter(Boolean);
+  const codes = parts.map(s => Number(modPow(BigInt(s), priv.d, priv.n)));
+  return String.fromCodePoint(...codes);
+}
+
+/* ---------- UI wiring ---------- */
+const sym = document.getElementById("sym");
+const asym = document.getElementById("asym");
+document.getElementById("tabSym").onclick = ()=>{ sym.style.display="block"; asym.style.display="none"; };
+document.getElementById("tabAsym").onclick = ()=>{ sym.style.display="none"; asym.style.display="block"; };
+
+// 共通鍵
+document.getElementById("symEnc").onclick = ()=>{
+  try{
+    const plain = document.getElementById("symPlain").value;
+    const key = document.getElementById("symKey").value;
+    document.getElementById("symCipher").value = symEncrypt(plain, key);
+  }catch(e){ alert(e.message); }
+};
+document.getElementById("symDec").onclick = ()=>{
+  try{
+    const c = document.getElementById("symCipherIn").value;
+    const k = document.getElementById("symKeyIn").value;
+    document.getElementById("symPlainOut").value = symDecrypt(c, k);
+  }catch(e){ alert(e.message); }
+};
+document.getElementById("symCopy").onclick = async ()=>{
+  const key = document.getElementById("symKey").value;
+  const cipher = document.getElementById("symCipher").value;
+
+  const payload =
+`共通鍵（パスフレーズ）：${key}
+暗号文：${cipher}`;
+
+  await navigator.clipboard.writeText(payload);
+  alert("共通鍵＋暗号文をコピーしました");
+};
+
+
+// 公開鍵
+let currentKeys = null;
+document.getElementById("rsaGen").onclick = ()=>{
+  currentKeys = rsaKeygen();
+  document.getElementById("pubKey").value = JSON.stringify(currentKeys.pub);
+  document.getElementById("privKey").value = JSON.stringify(currentKeys.priv);
+};
+document.getElementById("pubCopy").onclick = async ()=>{
+  const v = document.getElementById("pubKey").value;
+  if(!v) return alert("先に鍵ペアを生成してください");
+  await navigator.clipboard.writeText(v);
+  alert("公開鍵をコピーしました");
+};
+document.getElementById("rsaEnc").onclick = ()=>{
+  try{
+    const pub = JSON.parse(document.getElementById("pubKeyIn").value);
+    const plain = document.getElementById("rsaPlain").value;
+    document.getElementById("rsaCipher").value = rsaEncryptText(plain, pub);
+  }catch(e){ alert("公開鍵の形式か平文が不適切です：\n" + e.message); }
+};
+document.getElementById("rsaDec").onclick = ()=>{
+  try{
+    if(!currentKeys) throw new Error("受信者側で鍵ペアを生成してください");
+    const cipher = document.getElementById("rsaCipherIn").value;
+    document.getElementById("rsaPlainOut").value = rsaDecryptText(cipher, currentKeys.priv);
+  }catch(e){ alert(e.message); }
+};
+document.getElementById("rsaCopy").onclick = async ()=>{
+  const v = document.getElementById("rsaCipher").value;
+  await navigator.clipboard.writeText(v);
+  alert("暗号文をコピーしました");
+};
+</script>
+</body>
+</html>
