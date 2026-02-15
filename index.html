@@ -16,13 +16,18 @@
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;}
     .small{font-size:12px; color:#444;}
     .warn{color:#a00; font-weight:600;}
+    .inline{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
     @media (max-width:900px){ .row{grid-template-columns:1fr;} }
   </style>
 </head>
 <body>
   <h1>暗号体験Webアプリ（授業用：共通鍵暗号 / 公開鍵暗号）</h1>
-  <div class="small warn">
-    ※これは学習用です。安全な通信のための実運用暗号ではありません（特にRSAは玩具サイズ）。
+  <div class="medium warn">
+    ※これは学習用です。安全な通信のための実運用暗号ではありません。
   </div>
 
   <div class="tabs">
@@ -54,8 +59,8 @@
         <button id="symDec">復号 →</button>
         <label>復号結果（平文）</label>
         <textarea id="symPlainOut" rows="5" placeholder="ここに復号結果が出ます"></textarea>
-        <div class="small">
-          体験ポイント：鍵が一致すると読める／1文字でも違うと読めない（鍵配送問題につなげる）
+        <div class="medium warn">
+          ポイント：鍵が一致すると読める／1文字でも違うと読めない
         </div>
       </div>
     </div>
@@ -66,14 +71,14 @@
     <div class="row">
       <div class="card">
         <h2 style="margin:0 0 8px;font-size:16px;">受信者（鍵を作る・秘密鍵で復号）</h2>
-        <button id="rsaGen">鍵ペア生成（玩具RSA）</button>
+        <div class="inline">
+          <button id="rsaGen">鍵ペア生成（玩具RSA）</button>
+          <button id="pubCopy">公開鍵をコピー</button>
+        </div>
         <label>公開鍵（相手に渡す）</label>
         <textarea id="pubKey" class="mono" rows="3" readonly></textarea>
-        <button id="pubCopy">公開鍵をコピー</button>
-
         <label>秘密鍵（自分だけ。見せない）</label>
         <textarea id="privKey" class="mono" rows="3" readonly></textarea>
-
         <hr />
         <label>受け取った暗号文（数字の列）</label>
         <textarea id="rsaCipherIn" class="mono" rows="5" placeholder="送信者から来た暗号文を貼り付け"></textarea>
@@ -82,7 +87,7 @@
         <textarea id="rsaPlainOut" rows="5"></textarea>
 
         <div class="small">
-          体験ポイント：公開鍵は配ってOK／復号は秘密鍵が必要（片方向性）
+          ポイント：公開鍵は配ってOK／復号は秘密鍵が必要
         </div>
       </div>
 
@@ -99,8 +104,8 @@
         <textarea id="rsaCipher" class="mono" rows="6"></textarea>
         <button id="rsaCopy">暗号文をコピー</button>
 
-        <div class="small warn">
-          ※このRSAは小さい数で動かしているため、長文・絵文字などは向きません（授業用の概念体験）。
+        <div class="medium warn">
+          ※このRSAは小さい数で動かしているため、長文は暗号文が長くなる／処理が遅くなるので短め推奨。
         </div>
       </div>
     </div>
@@ -197,21 +202,26 @@ function rsaKeygen(){
   if(d===null) return rsaKeygen();
   return { pub:{n,e}, priv:{n,d} };
 }
-// RSA（玩具）：1文字(コード)を1ブロックとして暗号化（nより小さい必要あり）
+// RSA（玩具）：UTF-8バイト列を1バイトずつ暗号化（mは0〜255なのでnより小さい）
 function rsaEncryptText(text, pub){
-  const codes = Array.from(text).map(ch => ch.codePointAt(0));
-  // nが小さいので、コードがn以上だと破綻する（絵文字等）
-  if(codes.some(x => x >= pub.n)) {
-    throw new Error("文字コードが大きすぎます。短い英数字や記号で試してください。");
+  const bytes = te.encode(text); // TextEncoderを流用
+  if(pub.n <= 256){
+    throw new Error("鍵が小さすぎます（n<=256）。鍵ペアを作り直してください。");
   }
-  const out = codes.map(m => modPow(m, pub.e, pub.n).toString());
+  const out = Array.from(bytes).map(m => modPow(m, pub.e, pub.n).toString());
   return out.join(" ");
 }
+
 function rsaDecryptText(cipher, priv){
   const parts = cipher.trim().split(/\s+/).filter(Boolean);
-  const codes = parts.map(s => Number(modPow(BigInt(s), priv.d, priv.n)));
-  return String.fromCodePoint(...codes);
+  const bytes = new Uint8Array(parts.length);
+  for(let i=0;i<parts.length;i++){
+    const m = Number(modPow(BigInt(parts[i]), priv.d, priv.n));
+    bytes[i] = m & 255;
+  }
+  return td.decode(bytes); // TextDecoderを流用
 }
+
 
 /* ---------- UI wiring ---------- */
 const sym = document.getElementById("sym");
@@ -282,5 +292,3 @@ document.getElementById("rsaCopy").onclick = async ()=>{
 </script>
 </body>
 </html>
-
-
