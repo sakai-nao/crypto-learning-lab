@@ -43,7 +43,7 @@
         <label>平文</label>
         <textarea id="symPlain" rows="5" placeholder="例：明日の1時間目は体育です。"></textarea>
         <label>共通鍵（パスフレーズ）</label>
-        <input id="symKey" placeholder="例：sakurai" />
+        <input id="symKey" placeholder="例：sakura" />
         <button id="symEnc">暗号化 →</button>
         <label>暗号文（相手に送る）</label>
         <textarea id="symCipher" class="mono" rows="5" placeholder="ここに暗号文が出ます"></textarea>
@@ -72,7 +72,7 @@
       <div class="card">
         <h2 style="margin:0 0 8px;font-size:16px;">受信者（鍵を作る・秘密鍵で復号）</h2>
         <div class="inline">
-          <button id="rsaGen">鍵ペア生成（玩具RSA）</button>
+          <button id="rsaGen">鍵ペア生成（簡易RSA）</button>
           <button id="pubCopy">公開鍵をコピー</button>
         </div>
         <label>公開鍵（相手に渡す）</label>
@@ -148,7 +148,7 @@ function symDecrypt(cipherB64, key){
   return td.decode(p);
 }
 
-/* ---------- 公開鍵（玩具RSA） ---------- */
+/* ---------- 公開鍵（簡易RSA） ---------- */
 // 乱数と素数（小）生成
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function gcd(a,b){ while(b){ [a,b]=[b,a%b]; } return a; }
@@ -202,7 +202,7 @@ function rsaKeygen(){
   if(d===null) return rsaKeygen();
   return { pub:{n,e}, priv:{n,d} };
 }
-// RSA（玩具）：UTF-8バイト列を1バイトずつ暗号化（mは0〜255なのでnより小さい）
+// RSA（簡易）：UTF-8バイト列を1バイトずつ暗号化（mは0〜255なのでnより小さい）
 function rsaEncryptText(text, pub){
   const bytes = te.encode(text); // TextEncoderを流用
   if(pub.n <= 256){
@@ -292,3 +292,4 @@ document.getElementById("rsaCopy").onclick = async ()=>{
 </script>
 </body>
 </html>
+
